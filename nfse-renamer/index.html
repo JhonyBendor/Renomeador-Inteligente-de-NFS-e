@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JB Renamer - Renomeador Inteligente de NFS-e</title>
+    
+    <!-- Google Fonts: Outfit (Interface) e JetBrains Mono (Previa de Codigo/Padrão) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- PDF.js para leitura de PDFs cliente-side -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    
+    <!-- JSZip para descompactar e compactar ZIPs cliente-side -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo-area">
+                <div class="logo-icon">
+                    <i data-lucide="file-text"></i>
+                </div>
+                <div>
+                    <h1>JB <span class="highlight">Renamer</span></h1>
+                    <p class="subtitle">Renomeie notas fiscais de serviço em lote com inteligência e privacidade local | por Jhony Bendor</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button id="theme-toggle" class="btn-icon" title="Alternar Tema">
+                    <i data-lucide="sun"></i>
+                </button>
+                <a href="#" class="help-link" title="Ajuda">
+                    <i data-lucide="help-circle"></i>
+                </a>
+            </div>
+        </header>
+
+        <!-- Dashboard Layout -->
+        <main class="app-main">
+            <!-- Sidebar: Controles e Configurações -->
+            <aside class="config-sidebar">
+                <!-- Painel de Upload -->
+                <div class="card glass upload-card">
+                    <div class="card-header">
+                        <i data-lucide="upload-cloud" class="icon-accent"></i>
+                        <h2>Carregar Notas Fiscais</h2>
+                    </div>
+                    <div class="card-body">
+                        <div id="drop-zone" class="drop-zone">
+                            <input type="file" id="file-input" multiple accept=".pdf,.zip" class="file-input">
+                            <div class="drop-zone-content">
+                                <div class="upload-icon-pulse">
+                                    <i data-lucide="file-up"></i>
+                                </div>
+                                <p class="primary-text">Arraste seus arquivos aqui</p>
+                                <p class="secondary-text">ou clique para navegar</p>
+                                <div class="badge-row">
+                                    <span class="badge">PDFs Individuais</span>
+                                    <span class="badge">Pasta Compactada (.ZIP)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Painel de Padrão de Nomeação -->
+                <div class="card glass pattern-card">
+                    <div class="card-header">
+                        <i data-lucide="settings" class="icon-accent"></i>
+                        <h2>Padrão de Nomeação</h2>
+                    </div>
+                    <div class="card-body">
+                        <p class="section-desc">Escolha como deseja que os seus arquivos sejam renomeados:</p>
+                        
+                        <!-- Tags Interativas -->
+                        <div class="tag-selector">
+                            <span class="tag-title">Variáveis disponíveis (clique para inserir):</span>
+                            <div class="tag-chips">
+                                <button class="chip" data-tag="{numero}" title="Número da NFS-e">
+                                    <i data-lucide="hash"></i>Número
+                                </button>
+                                <button class="chip" data-tag="{prestador}" title="Razão Social do Prestador">
+                                    <i data-lucide="building"></i>Prestador
+                                </button>
+                                <button class="chip" data-tag="{cnpj}" title="CNPJ do Prestador">
+                                    <i data-lucide="credit-card"></i>CNPJ
+                                </button>
+                                <button class="chip" data-tag="{data}" title="Data de Emissão da Nota">
+                                    <i data-lucide="calendar"></i>Data
+                                </button>
+                                <button class="chip" data-tag="{valor}" title="Valor Total da Nota">
+                                    <i data-lucide="dollar-sign"></i>Valor
+                                </button>
+                                <button class="chip" data-tag="{original}" title="Nome original do arquivo">
+                                    <i data-lucide="file"></i>Nome Original
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Input da Fórmula -->
+                        <div class="input-formula-group">
+                            <label for="pattern-input">Estrutura do Nome:</label>
+                            <div class="input-with-extension">
+                                <input type="text" id="pattern-input" value="{data} {numero} {prestador}" placeholder="ex: {data} {numero} {prestador}">
+                                <span class="ext-label">.pdf</span>
+                            </div>
+                        </div>
+
+                        <!-- Configurações Adicionais -->
+                        <div class="additional-settings">
+                            <div class="setting-item">
+                                <label for="date-format">Formato da Data:</label>
+                                <select id="date-format" class="form-select">
+                                    <option value="DD-MM-AAAA" selected>DD-MM-AAAA (21-07-2026)</option>
+                                    <option value="AAAA-MM-DD">AAAA-MM-DD (2026-07-21)</option>
+                                    <option value="DD.MM.AAAA">DD.MM.AAAA (21.07.2026)</option>
+                                    <option value="DDMMAAAA">DDMMAAAA (21072026)</option>
+                                    <option value="AAAAMM">AAAAMM (202607)</option>
+                                </select>
+                            </div>
+
+                            <div class="setting-item checkbox-item">
+                                <input type="checkbox" id="clean-accents" checked>
+                                <label for="clean-accents">Remover acentos e caracteres especiais dos nomes</label>
+                            </div>
+
+                            <div class="setting-item checkbox-item">
+                                <input type="checkbox" id="uppercase-names" checked>
+                                <label for="uppercase-names">Colocar nomes dos prestadores em MAIÚSCULO</label>
+                            </div>
+                        </div>
+
+                        <!-- Prévia em tempo real de exemplo -->
+                        <div class="preview-box">
+                            <div class="preview-title">
+                                <i data-lucide="eye"></i>Exemplo de Resultado:
+                            </div>
+                            <div id="live-pattern-preview" class="preview-content">
+                                2026-07-21 - PRESTADOR EXEMPLO LTDA - NF 12345.pdf
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Dashboard Content: Lista de Notas e Resultados -->
+            <section class="results-content">
+                <!-- Painel de Resumo / Estatísticas -->
+                <div class="stats-grid">
+                    <div class="stat-card glass">
+                        <div class="stat-icon icon-blue">
+                            <i data-lucide="files"></i>
+                        </div>
+                        <div class="stat-data">
+                            <span id="stat-total" class="stat-value">0</span>
+                            <span class="stat-label">Total de PDFs</span>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card glass">
+                        <div class="stat-icon icon-success">
+                            <i data-lucide="check-circle-2"></i>
+                        </div>
+                        <div class="stat-data">
+                            <span id="stat-success" class="stat-value">0</span>
+                            <span class="stat-label">Lidos com Sucesso</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card glass">
+                        <div class="stat-icon icon-warning">
+                            <i data-lucide="alert-triangle"></i>
+                        </div>
+                        <div class="stat-data">
+                            <span id="stat-failed" class="stat-value">0</span>
+                            <span class="stat-label">Ajustes Necessários</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card glass">
+                        <div class="stat-icon icon-purple">
+                            <i data-lucide="hourglass"></i>
+                        </div>
+                        <div class="stat-data">
+                            <span id="stat-time-saved" class="stat-value">0 min</span>
+                            <span class="stat-label">Tempo Economizado</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabela de Notas Processadas -->
+                <div class="card glass files-card">
+                    <div class="card-header table-header-layout">
+                        <div class="header-title">
+                            <i data-lucide="list" class="icon-accent"></i>
+                            <h2>Fila de Processamento</h2>
+                        </div>
+                        <div class="header-actions-table">
+                            <div class="search-box">
+                                <i data-lucide="search" class="search-icon"></i>
+                                <input type="text" id="search-input" placeholder="Filtrar notas...">
+                            </div>
+                            <button id="clear-queue-btn" class="btn btn-secondary btn-sm" disabled>
+                                <i data-lucide="trash-2"></i>Limpar Fila
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body no-padding">
+                        <div class="table-container">
+                            <table id="files-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 220px;">Nome Original</th>
+                                        <th style="width: 90px; text-align: center;">Status</th>
+                                        <th style="width: 100px;">Nº Nota</th>
+                                        <th style="width: 180px;">Prestador</th>
+                                        <th style="width: 130px;">CNPJ</th>
+                                        <th style="width: 100px;">Data Emissão</th>
+                                        <th style="width: 100px;">Valor</th>
+                                        <th style="width: 250px;">Novo Nome Proposto</th>
+                                        <th style="width: 80px; text-align: center;">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="files-tbody">
+                                    <tr id="empty-row">
+                                        <td colspan="9" class="empty-state">
+                                            <div class="empty-state-content">
+                                                <i data-lucide="file-search"></i>
+                                                <h3>Nenhum arquivo carregado</h3>
+                                                <p>Arraste um arquivo ZIP ou arquivos PDF na área ao lado para processar.</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Painel de Exportação Fixo/Float -->
+                <div id="export-bar" class="export-bar hidden-bar">
+                    <div class="export-info">
+                        <i data-lucide="check-square" class="info-icon"></i>
+                        <div>
+                            <h4>Pronto para exportar!</h4>
+                            <p><span id="ready-count">0</span> arquivos processados e prontos para download.</p>
+                        </div>
+                    </div>
+                    <div class="export-actions">
+                        <button id="download-zip-btn" class="btn btn-primary btn-lg">
+                            <i data-lucide="folder-archive"></i>
+                            <span>Renomear e Baixar ZIP</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal de Edição Manual de Nota -->
+    <div id="edit-modal" class="modal">
+        <div class="modal-content glass">
+            <div class="modal-header">
+                <h3>Editar Metadados da Nota</h3>
+                <button class="close-modal-btn" id="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-form">
+                    <input type="hidden" id="edit-file-id">
+                    
+                    <div class="form-group">
+                        <label for="modal-original-name">Nome do Arquivo:</label>
+                        <input type="text" id="modal-original-name" readonly class="form-input readonly-input">
+                    </div>
+                    
+                    <div class="grid-2-col">
+                        <div class="form-group">
+                            <label for="modal-numero">Número da Nota:</label>
+                            <input type="text" id="modal-numero" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="modal-data">Data de Emissão:</label>
+                            <input type="text" id="modal-data" class="form-input" placeholder="DD/MM/AAAA">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="modal-prestador">Nome do Prestador:</label>
+                        <input type="text" id="modal-prestador" class="form-input">
+                    </div>
+
+                    <div class="grid-2-col">
+                        <div class="form-group">
+                            <label for="modal-cnpj">CNPJ do Prestador:</label>
+                            <input type="text" id="modal-cnpj" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="modal-valor">Valor Total (R$):</label>
+                            <input type="text" id="modal-valor" class="form-input">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="btn-cancel-modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btn-save-modal">Salvar Alterações</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
